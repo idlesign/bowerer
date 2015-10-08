@@ -15,6 +15,8 @@ https://github.com/idlesign/bowerer
 Description
 -----------
 
+**Working on... Stay tuned.**
+
 *Bower for pythoneers.*
 
 Bower registry client implemented in Python.
