@@ -1,8 +1,12 @@
 import re
+import json
+from os.path import basename, isdir, abspath, join, exists
 
 import requests
+from six import string_types
 
-from .exceptions import EndpointError
+from .exceptions import EndpointError, JsonError
+from .settings import LOGGER
 
 
 def get_json(url, allow_empty=False):
@@ -163,3 +167,120 @@ class Endpoint(object):
             value += '#' + (target or '*')
 
         return {name: value}
+
+
+class JsonReader(object):
+
+    filename_component = 'component.json'
+    filename_deprecated = filename_component
+    filename_modern = 'bower.json'
+    filename_modern_hidden = '.' + filename_modern
+    candidate_filenames = (filename_modern, filename_deprecated, filename_modern_hidden)
+
+    def __init__(self, path):
+        self.path = path
+
+    def read(self):
+        filepath = self.path
+
+        LOGGER.debug('Trying to read project JSON from %s ...', filepath)
+
+        if isdir(filepath):
+            filepath = self.find(filepath)
+
+        if not self.exists(filepath):
+            raise JsonError('File does not exist %s' % filepath)
+
+        contents = self.read_(filepath)
+
+        return filepath, contents
+
+    @classmethod
+    def find(cls, path, candidates=None):
+        LOGGER.debug('Scanning %s ...', path)
+
+        if candidates is None:
+            candidates = cls.candidate_filenames
+
+        if not candidates:
+            raise JsonError('None of %s were found in %s' % (', '.join(cls.candidate_filenames), path))
+
+        current_candidate = candidates[0]
+        LOGGER.debug('Current candidate: %s', current_candidate)
+
+        filepath = cls.resolve(path, current_candidate)
+        if not cls.exists(filepath):
+            filepath = cls.find(path, candidates[1:])
+
+            if current_candidate != cls.filename_component:
+                return filepath
+
+            if not cls.is_component_one(cls.read_(filepath)):
+                return filepath
+
+            return cls.find(path, candidates[2:])
+
+        return filepath
+
+    @classmethod
+    def read_(cls, filepath):
+        with open(filepath) as f:
+            contents = json.load(f)
+        return contents
+
+    @classmethod
+    def resolve(cls, path, filename):
+        return abspath(join(path, filename))
+
+    @classmethod
+    def exists(cls, filepath):
+        return exists(filepath)
+
+    @classmethod
+    def validate(cls, json_dict):
+        """Validates a given JSON dict.
+
+        :param dict json_dict:
+        :raises: JsonError
+        """
+        if not json_dict.get('name'):
+            raise JsonError('`name` property is not set')
+
+    @classmethod
+    def normalize(cls, json_dict):
+        """Normalizes a given JSON dict inplace.
+
+        :param dict json_dict:
+        """
+        main = json_dict.get('main')
+        if isinstance(main, string_types):
+            json_dict['main'] = main.split(',')
+
+    @classmethod
+    def is_component_one(cls, json_dict):
+        """Verifies JSON is component(1) spec conformed.
+
+        :param dict json_dict:
+        :rtype: bool
+        """
+        component_one_keys = ('repo', 'development', 'local', 'remotes', 'paths', 'demo')
+        return set(json_dict.keys()).intersection(component_one_keys)
+
+
+def read_json(path, dummy_json=None):
+    deprecated = False
+    is_dummy = False
+
+    try:
+        filepath, contents = JsonReader(path).read()
+        filename = basename(filepath)
+        if filename == JsonReader.filename_deprecated:
+            deprecated = filename
+
+    except JsonError:
+        if not dummy_json:
+            raise
+        contents = dummy_json
+        is_dummy = True
+
+    return contents, deprecated, is_dummy

@@ -1,3 +1,4 @@
+
 class BowererException(Exception):
     pass
 
@@ -7,4 +8,12 @@ class UnsupportedHostingUrl(BowererException):
 
 
 class EndpointError(BowererException):
+    pass
+
+
+class JsonError(BowererException):
+    pass
+
+
+class ProjectError(BowererException):
     pass

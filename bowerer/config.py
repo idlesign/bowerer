@@ -138,20 +138,15 @@ def read_json(filepath):
     return contents
 
 
-def load(args=None):
+def load(config=None):
     """Loads and returns configuration comprised from data stored
     in various locations.
 
-    :param args:
+    :param dict config:
     :rtype: dict
     """
 
-    # Parse --config.foo=false
-    # argvConfig = object.map(argv.config || {}, function (value) {
-    #     return value === 'false' ? false : value;
-    # });
-
-    args = args or {}
+    config = config or {}
 
     name_base = 'bower'
     name_rc = name_base + 'rc'
@@ -165,7 +160,34 @@ def load(args=None):
         read_json(path.join(DIR_CURRENT, '.' + name_rc)),  # todo find upwards from parents
         # env('npm_package_config_' + name + '_'),
         # env(name + '_'),
-        args
+        config
     ]
     result = normalize(reduce(merge, sources))
     return result
+
+
+def parse_from_command_line(args):
+    """Parses config data from command line arguments and returns it as a dict,
+    e.g --config.endpoint-parser=<parser> --config.storage.cache=<cache>
+
+    :param list args:
+    :rtype: dict
+    """
+    config = {}
+
+    for arg in args:
+        if arg.startswith('--config'):
+            key = arg.replace('--config.', '')
+            key, value = key.split('=')
+            value = value.strip()
+            if '.' in key:
+                key = key.split('.')
+                value = {key[1].strip(): value}
+                key = key[0]
+
+            if value == 'false':
+                value = False
+
+            merge(config, {key.strip(): value})
+
+    return config
