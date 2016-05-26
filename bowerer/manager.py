@@ -1,8 +1,12 @@
 from os.path import join
-from itertools import ifilter
 from functools import cmp_to_key
 
 from semantic_version import compare as v_compare, match as v_match
+
+try:
+    from itertools import ifilter as filter
+except ImportError:
+    pass
 
 
 class Manager(object):
@@ -213,5 +217,5 @@ class Manager(object):
 
             return True
 
-        filtered = ifilter(func_filter, [(idx, endpoint) for idx, endpoint in enumerate(endpoints)])
+        filtered = filter(func_filter, [(idx, endpoint) for idx, endpoint in enumerate(endpoints)])
         return list(filtered)  # todo
